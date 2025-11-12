@@ -2,8 +2,8 @@ services:
   - type: web
     name: vanna-ai
     env: python
-    runtime: python-3.11
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    runtime: python-3.11.9
+    buildCommand: pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
@@ -12,8 +12,7 @@ services:
         sync: false
       - key: PORT
         value: 8000
-      - key: PYTHON_VERSION
-        value: 3.11.0
+
 
 
 
