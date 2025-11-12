@@ -1,12 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import rateLimit from 'express-rate-limit';
-import path from 'path';
 
-// Load environment variables
-dotenv.config({ path: path.join(__dirname, '../.env') });
+// Environment variables are provided by Vercel in production
+// For local development, use .env file with dotenv
 
 const app = express();
 const prisma = new PrismaClient();
