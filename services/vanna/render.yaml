@@ -3,7 +3,7 @@ services:
     name: vanna-ai
     env: python
     runtime: python-3.10.13
-    buildCommand: pip install --upgrade pip setuptools wheel && pip install --only-binary=:all: --no-cache-dir -r requirements-simple.txt
+    buildCommand: pip install --upgrade pip setuptools wheel && pip install --only-binary=:all: --no-cache-dir -r requirements-ultra-minimal.txt
     startCommand: uvicorn main-simple:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
@@ -13,7 +13,8 @@ services:
       - key: PORT
         value: 8000
       - key: PYTHON_VERSION
-        value: 3.10.1
+        value: 3.10.13
+
 
 
 
