@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
-from groq import Groq
+import requests
 import json
 
 load_dotenv()
@@ -15,7 +15,7 @@ app = FastAPI(title="Vanna AI Service", version="1.0.0")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify allowed origins
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,12 +29,10 @@ if not DATABASE_URL:
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Groq client
+# Groq API key
 groq_api_key = os.getenv("GROQ_API_KEY")
 if not groq_api_key:
     raise ValueError("GROQ_API_KEY environment variable is required")
-
-groq_client = Groq(api_key=groq_api_key)
 
 # Request/Response models
 class QueryRequest(BaseModel):
@@ -45,7 +43,7 @@ class QueryResponse(BaseModel):
     results: list
     error: str = None
 
-# Database schema context for LLM
+# Database schema context
 SCHEMA_CONTEXT = """
 Database Schema:
 - vendors (id, vendor_id, name, category, created_at, updated_at)
@@ -62,7 +60,7 @@ Relationships:
 """
 
 def generate_sql(natural_language_query: str) -> str:
-    """Generate SQL query from natural language using Groq."""
+    """Generate SQL query from natural language using Groq API via HTTP."""
     
     prompt = f"""
 You are a SQL expert. Given the following database schema and a natural language query, generate a valid PostgreSQL SQL query.
@@ -81,23 +79,35 @@ SQL Query:
 """
     
     try:
-        chat_completion = groq_client.chat.completions.create(
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a SQL expert. Generate only valid PostgreSQL queries based on the schema and user query."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            model="llama3-8b-8192",  # Fast and efficient model
-            temperature=0.1,
-            max_tokens=500
+        # Call Groq API directly via HTTP
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {groq_api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama3-8b-8192",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a SQL expert. Generate only valid PostgreSQL queries based on the schema and user query."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "temperature": 0.1,
+                "max_tokens": 500
+            },
+            timeout=30
         )
         
-        sql_query = chat_completion.choices[0].message.content.strip()
+        response.raise_for_status()
+        data = response.json()
+        
+        sql_query = data["choices"][0]["message"]["content"].strip()
         
         # Clean up SQL query (remove markdown code blocks if present)
         if sql_query.startswith("```"):
@@ -158,14 +168,7 @@ async def health_check():
 
 @app.post("/query", response_model=QueryResponse)
 async def query_data(request: QueryRequest):
-    """
-    Process natural language query and return SQL + results.
-    
-    Example queries:
-    - "Show me total spend by vendor"
-    - "What are the top 5 customers by invoice amount?"
-    - "How many invoices were paid in January?"
-    """
+    """Process natural language query and return SQL + results."""
     try:
         # Generate SQL from natural language
         sql_query = generate_sql(request.query)
@@ -190,7 +193,3 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
-
-
-
-
